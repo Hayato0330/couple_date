@@ -5,4 +5,4 @@ pages_build_output_dir = "."
 [[d1_databases]]
 binding = "DB"
 database_name = "couple_date_db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "66d4cb96-6af8-4bea-a8a9-6681a8449d62"
