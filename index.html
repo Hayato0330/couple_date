@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Couple Date - MBTIでデート提案</title>
+<style>
+  :root {
+    --pink: #ff6f91;
+    --purple: #8e6bff;
+    --bg: #fff5f8;
+    --card: #ffffff;
+    --text: #3b2b3a;
+    --muted: #8a7a88;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Hiragino Sans", "Yu Gothic", sans-serif;
+    background: linear-gradient(160deg, var(--bg), #f2eeff 60%);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header {
+    padding: 24px 16px 8px;
+    text-align: center;
+  }
+  header h1 {
+    font-size: 1.5rem;
+    margin: 0 0 4px;
+    background: linear-gradient(90deg, var(--pink), var(--purple));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  header p { color: var(--muted); margin: 0; font-size: 0.9rem; }
+  main {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 16px rgba(142, 107, 255, 0.08);
+  }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row > * { flex: 1; min-width: 140px; }
+  label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
+  input, select, textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid #eadbe6;
+    font-size: 1rem;
+    background: #fffafc;
+    margin-bottom: 12px;
+  }
+  textarea { resize: vertical; min-height: 60px; }
+  button {
+    background: linear-gradient(90deg, var(--pink), var(--purple));
+    color: white;
+    border: none;
+    border-radius: 999px;
+    padding: 12px 24px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button.secondary {
+    background: none;
+    color: var(--purple);
+    border: 1px solid var(--purple);
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .tabbar { display: flex; gap: 8px; margin-bottom: 12px; }
+  .tabbar button { flex: 1; background: #f1e7f7; color: var(--purple); font-weight: 500; }
+  .tabbar button.active { background: linear-gradient(90deg, var(--pink), var(--purple)); color: white; }
+  .suggestion {
+    border: 1px solid #f0e3ec;
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .suggestion h3 { margin: 0 0 4px; font-size: 1.05rem; }
+  .tag {
+    display: inline-block;
+    background: #f5ecff;
+    color: var(--purple);
+    font-size: 0.75rem;
+    padding: 2px 10px;
+    border-radius: 999px;
+    margin-bottom: 8px;
+  }
+  .meta { color: var(--muted); font-size: 0.8rem; margin-top: 6px; }
+  .stars { display: flex; gap: 4px; margin-top: 10px; }
+  .star {
+    cursor: pointer;
+    font-size: 1.4rem;
+    color: #e0d5df;
+  }
+  .star.active { color: #ffb648; }
+  .feedback-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+  .did-it { display: flex; align-items: center; gap: 4px; font-size: 0.85rem; color: var(--muted); }
+  .invite-code {
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--purple);
+    text-align: center;
+    background: #f5ecff;
+    border-radius: 10px;
+    padding: 10px;
+    margin-bottom: 12px;
+  }
+  .error { color: #d1416a; font-size: 0.85rem; margin: -6px 0 10px; }
+  .hidden { display: none !important; }
+  .muted { color: var(--muted); font-size: 0.85rem; }
+  .history-item { padding: 10px 0; border-bottom: 1px solid #f2e6ee; }
+  .history-item:last-child { border-bottom: none; }
+  .spinner {
+    display: inline-block;
+    width: 16px; height: 16px;
+    border: 2px solid #eee;
+    border-top-color: var(--purple);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>💞 Couple Date AI</h1>
+  <p>2人のMBTIから、次のデートを提案します</p>
+</header>
+<main id="app"></main>
+
+<script>
+const MBTI_CODES = ["INTJ","INTP","ENTJ","ENTP","INFJ","INFP","ENFJ","ENFP","ISTJ","ISFJ","ESTJ","ESFJ","ISTP","ISFP","ESTP","ESFP"];
+
+const state = {
+  token: localStorage.getItem("cd_token") || null,
+  couple: JSON.parse(localStorage.getItem("cd_couple") || "null"),
+  view: "home", // home | suggest | history
+  suggestions: [],
+  loading: false,
+  error: "",
+};
+
+function saveSession(token, couple) {
+  state.token = token;
+  state.couple = couple;
+  localStorage.setItem("cd_token", token);
+  localStorage.setItem("cd_couple", JSON.stringify(couple));
+}
+
+function logout() {
+  state.token = null;
+  state.couple = null;
+  state.suggestions = [];
+  localStorage.removeItem("cd_token");
+  localStorage.removeItem("cd_couple");
+  render();
+}
+
+async function api(path, opts = {}) {
+  const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
+  if (state.token) headers["Authorization"] = "Bearer " + state.token;
+  const res = await fetch(path, { ...opts, headers });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "エラーが発生しました");
+  return data;
+}
+
+function mbtiOptions(selected) {
+  return MBTI_CODES.map((c) => `<option value="${c}" ${c === selected ? "selected" : ""}>${c}</option>`).join("");
+}
+
+function render() {
+  const app = document.getElementById("app");
+  if (!state.token || !state.couple) {
+    app.innerHTML = renderAuth();
+    bindAuthEvents();
+    return;
+  }
+  app.innerHTML = renderTabbar() + (state.view === "history" ? renderHistory() : renderSuggest());
+  bindMainEvents();
+  if (state.view === "history") loadHistory();
+}
+
+function renderAuth() {
+  return `
+  <div class="card">
+    <div class="tabbar">
+      <button id="tab-register" class="active">新規登録</button>
+      <button id="tab-login">ログイン</button>
+    </div>
+    <div id="auth-register">
+      <div class="row">
+        <div>
+          <label>あなたの名前</label>
+          <input id="reg-nameA" placeholder="例: はると" />
+        </div>
+        <div>
+          <label>あなたのMBTI</label>
+          <select id="reg-mbtiA">${mbtiOptions("INFP")}</select>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>パートナーの名前</label>
+          <input id="reg-nameB" placeholder="例: ゆい" />
+        </div>
+        <div>
+          <label>パートナーのMBTI</label>
+          <select id="reg-mbtiB">${mbtiOptions("ENFJ")}</select>
+        </div>
+      </div>
+      <label>合言葉(PIN, 4文字以上)</label>
+      <input id="reg-pin" type="password" placeholder="2人で共有するPIN" />
+      <div id="reg-error" class="error hidden"></div>
+      <button id="reg-submit">カップル登録する</button>
+      <p class="muted">登録すると招待コードが発行されます。次回からはそのコードでログインできます。</p>
+    </div>
+    <div id="auth-login" class="hidden">
+      <label>招待コード</label>
+      <input id="login-id" placeholder="例: AB12CD" style="text-transform:uppercase" />
+      <label>PIN</label>
+      <input id="login-pin" type="password" />
+      <div id="login-error" class="error hidden"></div>
+      <button id="login-submit">ログイン</button>
+    </div>
+  </div>`;
+}
+
+function bindAuthEvents() {
+  const tabReg = document.getElementById("tab-register");
+  const tabLogin = document.getElementById("tab-login");
+  const regBox = document.getElementById("auth-register");
+  const loginBox = document.getElementById("auth-login");
+
+  tabReg.onclick = () => { tabReg.classList.add("active"); tabLogin.classList.remove("active"); regBox.classList.remove("hidden"); loginBox.classList.add("hidden"); };
+  tabLogin.onclick = () => { tabLogin.classList.add("active"); tabReg.classList.remove("active"); loginBox.classList.remove("hidden"); regBox.classList.add("hidden"); };
+
+  document.getElementById("reg-submit").onclick = async () => {
+    const nameA = document.getElementById("reg-nameA").value.trim();
+    const nameB = document.getElementById("reg-nameB").value.trim();
+    const mbtiA = document.getElementById("reg-mbtiA").value;
+    const mbtiB = document.getElementById("reg-mbtiB").value;
+    const pin = document.getElementById("reg-pin").value;
+    const errBox = document.getElementById("reg-error");
+    errBox.classList.add("hidden");
+    try {
+      const data = await api("/api/register", { method: "POST", body: JSON.stringify({ nameA, mbtiA, nameB, mbtiB, pin }) });
+      saveSession(data.token, { id: data.coupleId, nameA, mbtiA, nameB, mbtiB });
+      alert("登録が完了しました！招待コード「" + data.coupleId + "」を2人で保存しておいてください。");
+      render();
+    } catch (e) {
+      errBox.textContent = e.message;
+      errBox.classList.remove("hidden");
+    }
+  };
+
+  document.getElementById("login-submit").onclick = async () => {
+    const coupleId = document.getElementById("login-id").value.trim();
+    const pin = document.getElementById("login-pin").value;
+    const errBox = document.getElementById("login-error");
+    errBox.classList.add("hidden");
+    try {
+      const data = await api("/api/login", { method: "POST", body: JSON.stringify({ coupleId, pin }) });
+      saveSession(data.token, data.couple);
+      render();
+    } catch (e) {
+      errBox.textContent = e.message;
+      errBox.classList.remove("hidden");
+    }
+  };
+}
+
+function renderTabbar() {
+  return `
+  <div class="card" style="padding:14px 20px;">
+    <div class="row" style="align-items:center;">
+      <div>
+        <strong>${state.couple.nameA}</strong>(${state.couple.mbtiA}) × <strong>${state.couple.nameB}</strong>(${state.couple.mbtiB})
+        <div class="invite-code" style="margin-top:8px;font-size:0.95rem;padding:6px;">招待コード: ${state.couple.id}</div>
+      </div>
+    </div>
+    <div class="tabbar" style="margin-top:8px;">
+      <button id="tab-suggest" class="${state.view !== "history" ? "active" : ""}">提案する</button>
+      <button id="tab-history" class="${state.view === "history" ? "active" : ""}">履歴</button>
+      <button id="tab-logout" class="secondary" style="flex:0 0 auto;">ログアウト</button>
+    </div>
+  </div>`;
+}
+
+function renderSuggest() {
+  return `
+  <div class="card">
+    <label>今日の気分・要望</label>
+    <input id="in-mood" placeholder="例: のんびりしたい / 体を動かしたい" />
+    <div class="row">
+      <div>
+        <label>予算感</label>
+        <input id="in-budget" placeholder="例: 5000円以内" />
+      </div>
+      <div>
+        <label>エリア</label>
+        <input id="in-area" placeholder="例: 東京都内" />
+      </div>
+    </div>
+    <label>自由記述(任意)</label>
+    <textarea id="in-free" placeholder="行きたい場所、記念日など何でも"></textarea>
+    <div id="suggest-error" class="error hidden"></div>
+    <button id="btn-suggest">${state.loading ? '<span class="spinner"></span>考え中...' : "AIに提案してもらう"}</button>
+  </div>
+  <div id="suggestions">${renderSuggestions()}</div>`;
+}
+
+function renderSuggestions() {
+  if (!state.suggestions.length) return "";
+  return state.suggestions
+    .map(
+      (s, i) => `
+    <div class="card suggestion" data-id="${s.id}">
+      <span class="tag">${s.category || "提案"}</span>
+      <h3>${s.title}</h3>
+      <p>${s.description || ""}</p>
+      ${s.whyItFits ? `<p class="muted">💡 ${s.whyItFits}</p>` : ""}
+      <div class="meta">${s.estimatedCost ? "予算目安: " + s.estimatedCost + " ・ " : ""}${s.duration || ""}</div>
+      <div class="stars" data-rating="0">
+        ${[1, 2, 3, 4, 5].map((n) => `<span class="star" data-n="${n}">★</span>`).join("")}
+      </div>
+      <div class="feedback-row">
+        <label class="did-it"><input type="checkbox" class="chk-did" /> 実際にやった</label>
+        <button class="secondary btn-fb-submit" style="padding:6px 16px;font-size:0.85rem;">評価を送る</button>
+      </div>
+    </div>`
+    )
+    .join("");
+}
+
+function renderHistory() {
+  return `<div class="card"><h3 style="margin-top:0;">これまでの提案</h3><div id="history-list" class="muted">読み込み中...</div></div>`;
+}
+
+async function loadHistory() {
+  try {
+    const data = await api("/api/history");
+    const el = document.getElementById("history-list");
+    if (!el) return;
+    if (!data.history.length) {
+      el.innerHTML = "まだ履歴がありません。";
+      return;
+    }
+    el.innerHTML = data.history
+      .map(
+        (h) => `
+      <div class="history-item">
+        <strong>${h.title}</strong> <span class="tag">${h.category || ""}</span><br/>
+        <span class="muted">${h.description || ""}</span><br/>
+        ${h.rating ? `評価: ${"★".repeat(h.rating)}${"☆".repeat(5 - h.rating)} ${h.did_it ? "・実行済み" : ""}` : '<span class="muted">未評価</span>'}
+      </div>`
+      )
+      .join("");
+  } catch (e) {
+    const el = document.getElementById("history-list");
+    if (el) el.textContent = e.message;
+  }
+}
+
+function bindMainEvents() {
+  document.getElementById("tab-suggest").onclick = () => { state.view = "suggest"; render(); };
+  document.getElementById("tab-history").onclick = () => { state.view = "history"; render(); };
+  document.getElementById("tab-logout").onclick = () => { if (confirm("ログアウトしますか？")) logout(); };
+
+  const btn = document.getElementById("btn-suggest");
+  if (btn) {
+    btn.onclick = async () => {
+      const errBox = document.getElementById("suggest-error");
+      errBox.classList.add("hidden");
+      state.loading = true;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>考え中...';
+      try {
+        const mood = document.getElementById("in-mood").value;
+        const budget = document.getElementById("in-budget").value;
+        const area = document.getElementById("in-area").value;
+        const freeText = document.getElementById("in-free").value;
+        const data = await api("/api/suggest", { method: "POST", body: JSON.stringify({ mood, budget, area, freeText }) });
+        state.suggestions = data.suggestions;
+        document.getElementById("suggestions").innerHTML = renderSuggestions();
+        bindSuggestionEvents();
+      } catch (e) {
+        errBox.textContent = e.message;
+        errBox.classList.remove("hidden");
+      } finally {
+        state.loading = false;
+        btn.disabled = false;
+        btn.textContent = "AIに提案してもらう";
+      }
+    };
+  }
+  bindSuggestionEvents();
+}
+
+function bindSuggestionEvents() {
+  document.querySelectorAll(".suggestion").forEach((card) => {
+    const stars = card.querySelectorAll(".star");
+    stars.forEach((star) => {
+      star.onclick = () => {
+        const n = Number(star.dataset.n);
+        card.querySelector(".stars").dataset.rating = n;
+        stars.forEach((st) => st.classList.toggle("active", Number(st.dataset.n) <= n));
+      };
+    });
+    card.querySelector(".btn-fb-submit").onclick = async (ev) => {
+      const rating = Number(card.querySelector(".stars").dataset.rating);
+      if (!rating) { alert("★で評価を選んでください"); return; }
+      const didIt = card.querySelector(".chk-did").checked;
+      const suggestionId = card.dataset.id;
+      const btn = ev.target;
+      btn.disabled = true;
+      try {
+        await api("/api/feedback", { method: "POST", body: JSON.stringify({ suggestionId, rating, didIt }) });
+        btn.textContent = "送信しました！";
+      } catch (e) {
+        alert(e.message);
+        btn.disabled = false;
+      }
+    };
+  });
+}
+
+render();
+</script>
+</body>
+</html>
